@@ -1,5 +1,5 @@
 #include <sys/syscall.h>
-    .global print_tb, main, bar, foo
+    .global print_tb
 
 print_tb:
     push %ebp
@@ -16,19 +16,14 @@ print_tb:
     // выводим название текущ функции
     lea my_name, %esi
 
-    push $9
+    .equ TB_NAME_LEN, 9
+    .equ NUM_FUNCS, 3
+    .equ FN_NAME_MAX_LEN, 5
+
+    push $TB_NAME_LEN
     push %esi
     call write_str
     add $8, %esp
-
-    /*mov $main, %eax
-    call writei32
-    mov $bar, %eax
-    call writei32
-    mov $foo, %eax
-    call writei32
-    mov $-1, %eax
-    call writei32*/
 
     // esi - адрес текущего ebp
     mov %ebp, %esi
@@ -39,11 +34,8 @@ bt_loop:
 
     movl $-1, min_idx(%ebp)
     movl $0x7fffffff, min_val(%ebp)
-
-    //mov 4(%esi), %eax
-    //call writei32
 loop:
-    cmp $3, %edi
+    cmp $NUM_FUNCS, %edi
     jge loop_end
 
     mov 4(%esi), %edx
@@ -51,7 +43,7 @@ loop:
     // ret_addr > fn_addr
     mov (%ebx), %eax
     cmp %eax, %edx
-    jl loop_cont
+    jle loop_cont
 
     sub %eax, %edx
     cmp %edx, min_val(%ebp)
@@ -64,16 +56,16 @@ loop_cont:
     inc %edi
     jmp loop
 loop_end:
-
-    cmp $-1, min_idx(%ebp)
-    jz end
-
     mov min_idx(%ebp), %eax
     lea fn_names(%eax, %eax, 4), %edi
 
-    push $5
+    push $FN_NAME_MAX_LEN
     push %edi
     call write_str
+    add $8, %esp
+
+    cmp $0, min_idx(%ebp)
+    jz end
 
     mov (%esi), %eax
     mov %eax, %esi
@@ -83,8 +75,6 @@ end:
     pop %edi
     pop %esi
     pop %ebx
-
-    add $8, %esp
 
     mov %ebp, %esp
     pop %ebp

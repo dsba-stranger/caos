@@ -13,27 +13,31 @@
 
 enum {
     BACKLOG = 5,
-    ERROR_ANS = -1,
-    PGID = 1
+    ERROR_ANS = -1
 };
 
 void handler(int signum) {
-    killpg(PGID, SIGTERM);
+    killpg(0, SIGTERM);
+    while (wait(NULL) != -1) {}
     _exit(0);
 }
 
-void child_handler(int signum) {}
+void pipe_handler(int signum) {
+    _exit(0);
+}
 
 int main(int argc, char **argv) {
     if (argc < 3) {
         return 1;
     }
 
-    struct sigaction sigact = {.sa_handler = handler, .sa_flags = SA_RESTART | SA_NOCLDWAIT};
-    sigaction(SIGTERM, &sigact, NULL);
-    sigaction(SIGPIPE, &sigact, NULL);
+    struct sigaction sigact_term = {.sa_handler = handler, .sa_flags = SA_RESTART};
+    sigaction(SIGTERM, &sigact_term, NULL);
 
-    struct sigaction sigact_children = {.sa_handler = child_handler, .sa_flags = SA_RESTART | SA_NOCLDWAIT};
+    struct sigaction sigact_pipe = {.sa_handler = pipe_handler, .sa_flags = SA_RESTART};
+    sigaction(SIGPIPE, &sigact_pipe, NULL);
+
+    struct sigaction sigact_children = {.sa_handler = SIG_DFL, .sa_flags = SA_NOCLDWAIT};
     sigaction(SIGCHLD, &sigact_children, NULL);
 
     uint16_t port = strtol(argv[1], NULL, 10);
@@ -66,6 +70,7 @@ int main(int argc, char **argv) {
 
     char *key = argv[2];
     int32_t serial = 0;
+    setpgid(0, 0);
 
     while (1) {
         struct sockaddr_in ss;
@@ -82,7 +87,6 @@ int main(int argc, char **argv) {
 
         if (!fork()) {
             close(fd);
-            setpgid(getpid(), PGID);
 
             int afd2 = dup(afd);
             FILE *rf = fdopen(afd, "r");
@@ -99,7 +103,7 @@ int main(int argc, char **argv) {
             }
 
             int32_t max;
-            if (fscanf(rf, "%" PRId32, &max) != 1 || fflush(rf) < 0) {
+            if (fscanf(rf, "%" PRId32, &max) != 1) {
                 perror("fscanf max");
                 goto finish;
             }
@@ -113,7 +117,7 @@ int main(int argc, char **argv) {
             int res;
 
             while ((res = fscanf(rf, "%" PRId32, &num)) != EOF) {
-                if (res != 1 || fflush(rf) < 0) {
+                if (res != 1) {
                     perror("scanf num");
                     goto finish;
                 }
@@ -138,12 +142,6 @@ finish:
         }
 
         close(afd);
-    }
-
-    close(fd);
-
-    for (int i = 0; i < serial; ++i) {
-        wait(NULL);
     }
 
 }

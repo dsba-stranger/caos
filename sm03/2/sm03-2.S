@@ -43,32 +43,36 @@ loop:
     mul %ecx
     shr $2, %edx
 
-    // 8 байт на стеке
-    sub $8, %esp
-    mov %edx, (%esp) // значение частного
-    mov %ecx, 4(%esp) // остаток будет тут
+    // edx - частное
+    mov %ecx, %esi // остаток будет тут
 
     // пробуем увеличить частное, так как при кратных 10 идет округление вниз
-    add $1, (%esp)
-    mov $10, %eax
-    mull (%esp)
-    sub %eax, 4(%esp)
+    add $1, %edx
 
-    cmp $0, 4(%esp)
+    // умножение на 10
+    shl $1, %edx
+    lea (%edx, %edx, 4), %eax
+    shr $1, %edx
+
+    sub %eax, %esi
+
+    cmp $0, %esi
     jz loop_ok
     // пробуем изначальное частное
-    mov %ecx, 4(%esp)
-    sub $1, (%esp)
-    mov $10, %eax
-    mull (%esp)
-    sub %eax, 4(%esp)
+    mov %ecx, %esi
+    sub $1, %edx
+
+    // умножение на 10
+    shl $1, %edx
+    lea (%edx, %edx, 4), %eax
+    shr $1, %edx
+
+    sub %eax, %esi
 loop_ok:
-    mov (%esp), %ecx // ecx /= 10
-    mov 4(%esp), %ebx
-    add $8, %esp
+    mov %edx, %ecx // ecx /= 10
+    mov %esi, %ebx
     push %ebx
 
-    add $1, %esi
     jmp loop
 backward_loop:
     cmp %esp, %edi
@@ -95,15 +99,15 @@ fn_end:
     pop %ebp
     ret
 
-
 write_str:
     push %ebp
     mov %esp, %ebp
 
+    .equ STDOUT_FILENO, 1
     push %ebx
 
     mov $SYS_write, %eax
-    mov $1, %ebx
+    mov $STDOUT_FILENO, %ebx
     mov 8(%ebp), %ecx
     mov 12(%ebp), %edx
     int $0x80
